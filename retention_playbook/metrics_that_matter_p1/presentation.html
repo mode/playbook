@@ -1,0 +1,655 @@
+<link href="//maxcdn.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.min.css" rel="stylesheet">
+<link href="//cdn.rawgit.com/jaz303/tipsy/master/src/stylesheets/tipsy.css" rel="stylesheet" type="text/css">
+<style>
+.bar-all { fill: #ccc; }
+.bar-action { fill: #6baed6; }
+.bar-retain { fill: #fc9272; }
+.bar-both { fill: #6a51a3; }
+
+.tipsy { font-size: 14px; }
+.tipsy-inner {max-width: 400px; }
+#action-callout { color: #feb24c; }
+#pct-callout { color: #00CC66; }
+
+p {
+  color: #666;
+  text-align: center;
+}
+
+.title {
+  font-size: 18px;
+}
+
+.narrative {
+  font-size: 12px;
+  margin: 0 auto;
+  width: 500px;
+  height: 120px;
+}
+
+.narr-p {
+  text-align: left;
+}
+
+.hidden {
+  display: none;
+}
+  
+.btn {
+  color: #788a8c;
+  background-color: white;
+  border: 1px Solid #5b7b94;
+  height:25px;
+  line-height: 25px;
+  width: 160px;
+  cursor: pointer;
+  padding: 2px 0px 0px 0px;
+  margin: 1px;
+  border-radius: 3px;
+  text-align: center;
+}
+
+.btn:hover {
+  background-color: #eee;
+}
+
+.btn.active {
+  background-color: #81CADA;
+  border: 1px Solid #81CADA;
+  color: white;
+}
+
+.btn.active:hover {
+  background-color: #74B6C4;
+  border: 1px Solid #74B6C4;
+}
+
+.buttons {
+  padding-top: 10px;
+  padding-bottom: 5px;
+  margin: 5px;
+  text-align: center;
+}
+
+#user-p {
+  font-size: 14px;
+  color: #757575;
+  font-style: italic;
+}
+
+table {
+  margin: 0 auto;
+  border-collapse: collapse;
+  border-spacing: 0px;
+}
+
+th {
+  background-color: #8B979C;
+  color: #fff;
+  font-weight: normal;
+  font-size: 12px;
+  padding: 8px;
+  border-bottom: 5px solid #f9fbff;
+  border-right: 2px solid #f9fbff !important;
+  text-align: center;
+  vertical-align: middle;
+}
+
+td { 
+  font-size: 12px;
+  color: #666;
+}
+
+.text-cell {
+  padding-left: 5px;
+}
+
+.hr-cell {
+  height: 0px;
+  padding: 0px;
+  margin: 0px;
+}
+
+.hr-cell.break {
+  height: 2px;
+  border-top: 15px solid #f9fbff;
+  border-bottom: 15px solid #f9fbff;
+  background-color: #ccc;
+}
+
+.sort:hover {
+  cursor: pointer;
+}
+
+th.sort {
+  padding: 15px 8px 3px 8px;
+}
+
+
+
+</style>
+<p class="title">Retention by Action in Users' First Week</p>
+<p id="user-p">Showing <span id="user-count"></span></p>
+<div class="buttons">
+  <div class="btn active" id="s1">1. % Retained by Action</div>
+  <div class="btn" id="s2">2. How Many Users?</div>
+  <div class="btn" id="s3">3. Who's Also Missed</div>
+  <div class="btn" id="s4">4. Finding What Matters</div>
+</div>
+<div class="narrative">
+  <p class="narr-p narr-1"> 
+    The bars below show the retention rates of users who took certain actions
+    a minimun number of times. 
+  </p>
+  <p class="narr-p narr-1"> 
+    These bars can show which features appear to drive retention.
+  </p>
+  <p class="narr-p hidden narr-2">
+    Just looking at the retention rates, however, hides important data. The 
+    bars now show the number of people who took each action.
+  </p>  
+  <p class="narr-p hidden narr-2">
+    Frequently, the actions that appear to be the strongest drivers of retention 
+    were taken by fewer people.
+  </p>  
+  <p class="narr-p hidden narr-3">
+    User counts also hides another important detail: How many users retained 
+    despite <strong>not</strong> taking the action? 
+  </p>
+  <p class="narr-p hidden narr-3">
+    The red bars below show the number of retaining users who didn't take the action.
+    Again, features that appeared the strongest initially often fail to explain why many users stuck
+    around.
+  </p>  
+  <p class="narr-p hidden narr-4">
+    So how do we determine which features matter most? We want to identify
+    the features that have high retention rates (a big purple bar relative the 
+    blue bar) <strong>and</strong> identify a large share of retaining users 
+    (a big purple bar relative to the red bar).
+  </p>  
+  <p class="narr-p hidden narr-4">
+    For each feature, the larger the purple bar (users retaining and taking the actions) 
+    relative to red bar (users just retaining) and blue bar (users just taking 
+    the action), the more strongly this metric correlates with retention.
+  </p>  
+</div>
+<div id="graphic"></div>
+<script src="//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore-min.js"></script>
+<script src="//cdn.rawgit.com/mbostock/d3/master/lib/colorbrewer/colorbrewer.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/jquery.tipsy/1.0.2/jquery.tipsy.min.js"></script>
+<script>
+
+// NUMBER OF ACTIONS PER METRIC
+metricCounts = [1,2,3,4,5,6,7,8,9,10]
+
+
+
+var drop = ["user_id","activated_at","retained","retained_string"];
+
+var data = dataset.content;
+var headers = d3.keys(data[0]);
+var headers = _.filter(headers,function(d) { return drop.indexOf(d) == -1; });
+
+var p = d3.format(".1%");
+var comma = d3.format(",");
+var colors = ["#d73027","#f46d43","#fdae61","#666","#666","#666","#a6d96a","#66bd63","#1a9850"];
+
+var width = 450;
+
+var x = d3.scale.linear()
+    .range([0, width]);
+
+var c = d3.scale.quantize()
+    .domain([0,1])
+    .range(colors);
+
+
+d3.select("#user-count").text(comma(data.length) + " users")
+
+var dataObj = makeData()
+var STAGE = "s1"
+
+drawTable()
+fillTable(dataObj,"name",1,STAGE)
+
+function drawTable() {
+  
+  var tableHeaders = [
+    "Action and minimum times it occurred",
+    "Chart"
+  ];
+  
+  var tableIds = [
+    "name",
+    "bars"
+  ];
+  
+  var table = d3.select("#graphic").append("table")
+  
+  table.selectAll("th")
+      .data(tableHeaders)
+    .enter().append("th")
+      .attr("class",function(d) { if (d == "Chart") { return "bars-header sort"; } else { return "sort"; }})
+      .attr("id",function(d,i) { return tableIds[i]; })
+      .html(function(d,i) { if (d == "Chart") {
+          return "<span id='header-title'>" + d + "</span><br>" + "<i id='chart-sort' class='fa fa-sort'></i>"; 
+        } else {
+          return d + "<br>" + "<i class='fa fa-sort'></i>";
+        }
+      })
+
+  
+  headers.forEach(function(h,i) {
+    metricCounts.forEach(function(v,j) {
+      table.append("tr")
+          .attr("class","row")
+          .attr("id","row" + (metricCounts.length*i + j + 1))
+          .selectAll("td")
+          .data([0,1])
+        .enter().append("td")
+          .attr("class","text-cell")
+          .attr("id",function(d) { return "c" + (metricCounts.length*i + j + 1) + "-" + d; })
+    })
+    
+    table.append("tr")
+      .attr("class","hr-row")
+      .selectAll("td")
+      .data([0,1])
+    .enter().append("td")
+      .attr("class","hr-cell")
+  })
+}
+
+function makeData() {
+  var dataObj = [];
+  headers.forEach(function(h) {
+    metricCounts.forEach(function(i) {
+      var barObj = barData(h,i)
+      barObj["name"] = h + ": " + i;
+      dataObj.push(barObj)
+    })
+  })
+  
+  return dataObj;
+}
+
+function barData(header,count) {
+  var all = data.length;
+  
+  var retained = _.filter(data,function(d){ return d["retained"] == 1; });
+  var tookAction = _.filter(data,function(d){ return d[header] >= count; });
+  var both = _.filter(retained,function(d){ return d[header] >= count; });
+  
+  var b1 = retained.length - both.length;
+  var b2 = both.length;
+  var b3 = tookAction.length - both.length;
+  
+  var score = b2/(b1 + b2 + b3);
+  var action = b2 + b3;
+  var retPct = b2/(b2 + b3);
+  var actionPct = b2/(b1 + b2);
+  
+  var arr = {
+      all:all,
+      ret: b1,
+      three: (b1 + b2 + b3),
+      bars: [b1,b2,b3],
+      score: score,
+      action: action,
+      retPct: retPct
+  }
+  return arr
+}
+
+function fillTable(dataObj,column,direction,stage) {
+  
+  var sortedObj = sortData(dataObj,column,direction)
+  
+  sortedObj.forEach(function(d,i) {
+    
+    var r = i+1;
+    
+    d3.select("#c" + r + "-0").text(d.name)
+    drawBarGraph(d,r,stage)
+  })
+  
+  if (column == "name") {
+    $(".hr-cell").addClass("break")
+  } else {
+    $(".hr-cell").removeClass("break")
+  }
+
+}
+
+function drawBarGraph(barObj,r,stage) {
+  
+  var bars = barObj.bars,
+      all = barObj.all,
+      barHeight = 20;
+  
+  var g = d3.select("#c" + r + "-1").append("svg")
+    .attr("class","table-bars")
+    .attr("width",width)
+    .attr("height",barHeight)
+    .style("padding-top","3px")
+  
+  x.domain([0,all])
+  
+  g.append("rect")
+      .attr("class","bar-retain")
+      .attr("x",x(0))
+      .attr("width",0)
+      .attr("y",0)
+      .attr("height",barHeight)
+      .property({"b0":bars[0],"b1":bars[1],"b2":bars[2]});
+  
+  g.append("rect")
+      .attr("class","bar-both")
+      .attr("x",x(0))
+      .attr("width",0)
+      .attr("y",0)
+      .attr("height",barHeight)
+      .property({"b0":bars[0],"b1":bars[1],"b2":bars[2]});
+  
+  g.append("rect")
+      .attr("class","bar-action")
+      .attr("x",x(0))
+      .attr("width",0)
+      .attr("y",0)
+      .attr("height",barHeight)
+      .property({"b0":bars[0],"b1":bars[1],"b2":bars[2]})
+    
+  g.append("text")
+      .attr("class","bar-text")
+      .attr("x",function() {
+          x.domain([0,(bars[1] + bars[2])]);
+          if (x(bars[1]) < 50) { return x(bars[1]) + 4;} else { return x(bars[1]) - 4; }
+        })
+        .attr("text-anchor",function() {
+          x.domain([0,(bars[1] + bars[2])]);
+          if (x(bars[1]) < 50) { return "start"; } else { return "end"; }
+        })
+      .attr("y",barHeight/2)
+      .attr("dy",".3em")
+      .style("fill","#f0f0f0")
+      .property({"b0":bars[0],"b1":bars[1],"b2":bars[2]});
+      
+  transitionBars(STAGE,dataObj,0)
+  
+}
+
+function retentionPctBars(dataObj,duration) {
+    
+    d3.selectAll(".bar-retain")
+        .transition()
+        .attr("x",x(0))
+        .attr("width",0)
+        .duration(duration)
+        
+    d3.selectAll(".bar-both")
+        .transition()
+        .attr("x",x(0))
+        .style("fill","#6a51a3")
+        .attr("width",function() {x.domain([0,(this.b1 + this.b2)]); return x(this.b1);})
+        .duration(duration)
+    
+    d3.selectAll(".bar-action")
+        .transition()
+        .attr("x",function() {x.domain([0,(this.b1 + this.b2)]); return x(this.b1); })
+        .attr("width",function() {x.domain([0,(this.b1 + this.b2)]); return x(this.b2); })
+        .duration(duration)
+    
+    d3.selectAll(".bar-text")
+        .transition()
+        .attr("x",function() {
+          x.domain([0,(this.b1 + this.b2)]);
+          if (x(this.b1) < 50) { return x(this.b1) + 4;} else { return x(this.b1) - 4; }
+        })
+        .attr("text-anchor",function() {
+          x.domain([0,(this.b1 + this.b2)]);
+          if (x(this.b1) < 50) { return "start"; } else { return "end"; }
+        })
+        .style("fill","#f0f0f0")
+        .text(function() { return p(this.b1/(this.b1 + this.b2)); })
+        .duration(duration)
+  
+}
+
+function actionCountBars(dataObj,duration) {
+    
+    var xMax = d3.max(_.pluck(dataObj,"action"));
+    x.domain([0,xMax])
+    
+    d3.selectAll(".bar-retain")
+        .transition()
+        .attr("x",x(0))
+        .attr("width",0)
+        .duration(duration)
+        
+    d3.selectAll(".bar-both")
+      .transition()
+      .attr("x",x(0))
+      .attr("width",function() {return x(this.b1);})
+      .duration(duration)
+    
+    d3.selectAll(".bar-action")
+      .transition()
+      .attr("x",function() {return x(this.b1);})
+      .attr("width",function() { return x(this.b2);})
+      .duration(duration)
+    
+    d3.selectAll(".bar-text")
+        .transition()
+        .attr("x",function() {
+          if (x(this.b1 + this.b2) > width - 50) { return x(this.b1 + this.b2) - 4;} else { return x(this.b1 + this.b2) + 4; }
+        })
+        .attr("text-anchor",function() { 
+          if (x(this.b1 + this.b2) > width - 50) { return "end" ;} else { return "start"; }
+        })
+        .style("fill",function() { 
+          if (x(this.b1 + this.b2) > width - 50) { return "#f0f0f0" ;} else { return "#666"; }
+        })
+        .text(function() { return comma(this.b1 + this.b2); })
+        .duration(duration)
+}
+
+function missingRetentionBars(dataObj,duration) {
+  
+  var duration = duration * 2;
+  var xMax = d3.max(_.pluck(dataObj,"action")) + dataObj[0].bars[0] + dataObj[0].bars[1];
+  var justify = dataObj[0].bars[0] + dataObj[0].bars[1];
+  
+  x.domain([0,xMax])
+    
+    d3.selectAll(".bar-retain")
+        .transition()
+        .attr("x",function() { return x(justify); })
+        .attr("width",x(0))
+        .duration(function() { return duration/5; })
+    
+    d3.selectAll(".bar-retain")
+        .transition()
+        .attr("x",function() { return x(justify - this.b0); })
+        .attr("width",function() { return x(this.b0); })
+        .delay(function() { return duration/3})
+        .duration(function() { return duration * (2/3); })
+        
+    d3.selectAll(".bar-both")
+        .transition()
+        .attr("x",x(justify))
+        .attr("width",function() {return x(this.b1);})
+        .duration(function() { return duration/5; })
+      
+    d3.selectAll(".bar-action")
+        .transition()
+        .attr("x",function() {return x(justify + this.b1);})
+        .attr("width",function() { return x(this.b2);})
+        .duration(function() { return duration/5; })
+    
+    d3.selectAll(".bar-text")
+        .transition()
+        .attr("x",function() {
+          if (x(justify - this.b0) > 50) { return x(justify - this.b0) - 4;} else { return x(justify - this.b0) + 4; }
+        })
+        .attr("text-anchor",function() { 
+          if (x(justify - this.b0) > 50) { return "end"; } else { return "start"; }
+        })
+        .style("fill",function() { 
+          if (x(justify - this.b0) > 50) { return "#666"; } else { return "#f0f0f0"; }
+        })
+        .text(function() { return comma(this.b0); })
+        .duration(duration);
+}
+
+function overlapBars(dataObj,duration) {
+  
+  missingRetentionBars(dataObj,0)
+  
+  // Move purple bar
+  var xMax = d3.max(_.pluck(dataObj,"action")) + dataObj[0].bars[0] + dataObj[0].bars[1];
+  var justify = dataObj[0].bars[0] + dataObj[0].bars[1];
+  
+  x.domain([0,xMax])
+  
+  d3.selectAll(".bar-both")
+      .transition()
+      .attr("x",x(0))
+      .attr("width",function() {return x(this.b1);})
+      .duration(function() { return duration; })
+  
+  // Realign blue bar
+  
+  d3.selectAll(".bar-action")
+      .transition()
+      .attr("x",x(justify))
+      .attr("width",function() {return x(this.b2);})
+      .delay(function() { return duration; })
+      .duration(function() { return duration; })
+      
+  // Expand to full scale
+        
+    d3.selectAll(".bar-both")
+        .transition()
+        .attr("x",x(0))
+        .attr("width",function() {x.domain([0,(this.b0 + this.b1 + this.b2)]); return x(this.b1);})
+        .delay(function() { return 2*duration; })
+        .duration(function() { return duration; })
+    
+    d3.selectAll(".bar-retain")
+        .transition()
+        .attr("x",function() {x.domain([0,(this.b0 + this.b1 + this.b2)]); return x(this.b1);})
+        .attr("width",function() {x.domain([0,(this.b0 + this.b1 + this.b2)]); return x(this.b0);})
+        .delay(function() { return 2*duration; })
+        .duration(function() { return duration; })
+    
+    d3.selectAll(".bar-action")
+        .transition()
+        .attr("x",function() {x.domain([0,(this.b0 + this.b1 + this.b2)]); return x(this.b1 + this.b0);})
+        .attr("width",function() {x.domain([0,(this.b0 + this.b1 + this.b2)]); return x(this.b2);})
+        .delay(function() { return 2*duration; })
+        .duration(function() { return duration; })
+    
+    d3.selectAll(".bar-text")
+        .transition()
+        .attr("x",function() {
+          x.domain([0,(this.b0 + this.b1 + this.b2)])
+          if (x(this.b1) < 50) { return x(this.b1) + 4;} else { return x(this.b1) - 4; }
+        })
+        .attr("text-anchor",function() {
+          x.domain([0,(this.b0 + this.b1 + this.b2)])
+          if (x(this.b1) < 50) { return "start"; } else { return "end"; }
+        })
+        .style("fill","#f0f0f0")
+        .text(function() { return p(this.b1/(this.b0 + this.b1 + this.b2)); })
+        .delay(duration*2)
+        .duration(duration);
+}
+
+
+function transitionBars(stage,dataObj,duration) {
+  
+  $(".narr-p").addClass("hidden")
+  
+  if (stage == "s1") { 
+    
+    $(".narr-1").removeClass("hidden")
+    var t = "Percent of people taking the action who retained"
+    retentionPctBars(dataObj,duration);
+    d3.select(".bars-header").attr("id","retPct")
+    d3.select("#header-title").text(t)
+    
+  } else if (stage == "s2") { 
+    
+    $(".narr-2").removeClass("hidden")
+    var t = "Number of people taking the action"
+    actionCountBars(dataObj,duration); 
+    d3.select(".bars-header").attr("id","action")
+    d3.select("#header-title").text(t)
+    
+  } else if (stage == "s3") { 
+    
+    $(".narr-3").removeClass("hidden")
+    var t = "Number of people who retained but didn't take the action"
+    missingRetentionBars(dataObj,duration); 
+    d3.select(".bars-header").attr("id","ret")
+    d3.select("#header-title").text(t)
+    
+  } else if (stage == "s4") {
+    
+    $(".narr-4").removeClass("hidden")
+    var t = "Metrics that most strongly correlate with retention"
+    overlapBars(dataObj,duration); 
+    d3.select(".bars-header").attr("id","score")
+    d3.select("#header-title").text(t)
+    
+  }
+}
+
+function sortData(dataObj,column,direction) {
+  var sorted = _.sortBy(dataObj, function(d){ return direction * d[column]; })
+  return sorted
+}
+
+$(".sort").click(function() {
+  
+  d3.selectAll("td").text("")
+  d3.selectAll("table-bars").remove()
+  
+  var column = $(this).attr("id")
+  var icon = $(this).children("i")
+  var iconClass = icon.attr("class");
+  
+  if (iconClass.indexOf("fa-sort-up") != -1) {
+    icon.removeClass("fa-sort-up").addClass("fa-sort-down");
+    fillTable(dataObj,column,-1,STAGE)
+    
+  } else if (iconClass.indexOf("fa-sort-down") != -1) {
+    icon.removeClass("fa-sort-down").addClass("fa-sort-up");
+    fillTable(dataObj,column,1,STAGE)
+    
+  } else if (iconClass.indexOf("fa-sort") != -1) { 
+    $(".fa-sort-up").removeClass("fa-sort-up").addClass("fa-sort")
+    $(".fa-sort-down").removeClass("fa-sort-down").addClass("fa-sort")
+    icon.removeClass("fa-sort");
+    icon.addClass("fa-sort-down");
+    fillTable(dataObj,column,-1,STAGE);
+  }
+    
+})
+
+$(".btn").click(function() {
+  
+  if ($(this).attr("class").indexOf("active") == -1){
+    $("#chart-sort").removeClass("fa-sort-down").removeClass("fa-sort-up").addClass("fa-sort")
+  }
+  
+  $(".btn").removeClass("active");
+  $(this).addClass("active");
+  
+  STAGE = $(this).attr("id");
+  transitionBars(STAGE,dataObj,1000)
+  
+})
+  
+
+</script>

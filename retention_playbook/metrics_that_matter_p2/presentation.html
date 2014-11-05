@@ -1,0 +1,451 @@
+<style>
+.bar-all { fill: #ccc; }
+.bar-action { fill: #6baed6; }
+.bar-retain { fill: #fc9272; }
+.bar-both { fill: #6a51a3; }
+
+.legend {
+  color: #7A7A7A;
+  font-size: 10px;
+}
+
+.legend-text {
+  fill: #666;
+  font-size: 11px;
+}
+
+.legend-text-big {
+  fill: #666;
+  font-size: 14px;
+}
+
+.bold {
+  font-weight: bold;
+}
+
+.legend-line {
+  fill: none;
+  stroke: #ccc;
+}
+
+.small-title {
+  text-align: center;
+  font-size: 14px;
+  text-align: center;
+  color: #666;
+}
+
+.ratio {
+  font-size: 12px;
+}
+
+.filter-legend {
+  font-size: 10px;
+  text-align: center;
+  color: #666;
+}
+
+.btn {
+  color: #788a8c;
+  background-color: white;
+  border: 1px Solid #5b7b94;
+  height:25px;
+  line-height: 25px;
+  width: 120px;
+  cursor: pointer;
+  padding: 2px 0px 0px 0px;
+  margin: 1px;
+  border-radius: 3px;
+  text-align: center;
+}
+
+.btn:hover {
+  background-color: #eee;
+}
+
+.btn.active {
+  background-color: #81CADA;
+  border: 1px Solid #81CADA;
+  color: white;
+}
+
+.btn.active:hover {
+  background-color: #74B6C4;
+  border: 1px Solid #74B6C4;
+}
+
+#graphic-legend, #graphic {
+  text-align: center;
+}
+
+p {
+  font-size: 18px;
+  color: #666;
+  text-align: center;
+}
+
+table {
+  vertical-align: middle;
+}
+
+form {
+  font-size: 10px;
+  text-align: center;
+}
+
+input {
+  width: 20px;
+  text-align: center;
+  border: 1px solid #c9cdce;
+  border-radius: 2px;
+}
+
+.buttons {
+  padding-top: 10px;
+  padding-bottom: 5px;
+  margin: 5px;
+  text-align: center;
+  padding-bottom: 20px;
+}
+
+.filter-container {
+  display: block;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.main {
+  margin: 0 auto;
+  text-align: center;
+  margin-bottom: 10px;
+  background: #eee;
+  max-width: 800px;
+  padding-bottom: 20px;
+}
+
+.filter {
+  position: relative;
+  vertical-align: middle;
+  display: inline-block;
+  margin-left: 5px;
+  text-align: center;
+  width: 110px;
+  height: 20px;
+  line-height: 20px;
+  font-size: 12px;
+}
+
+.wrapper {
+  display: inline-block;
+  vertical-align: middle;
+  line-height: normal;  
+}
+  
+</style>
+<p>Retention by Action in Users' First Week</p>
+
+<div class="main">
+  <p style="font-size:16px; padding-top: 8px; margin-bottom: 0px">Filters</p>
+  <p style="font-size:12px; padding-bottom: 8px; margin-top: 0px">
+    Show users who have taken each of these actions at least the chosen number of times.
+  </p>
+  <div class="filter-container"></div>
+</div>
+<div class="buttons">
+  <div class="btn active" id="count">Counts</div>
+  <div class="btn" id="percent">Percentages</div>
+</div>
+
+
+<div id="graphic"></div>
+<script src="//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore-min.js"></script>
+<script src="https://cdn.rawgit.com/mbostock/d3/master/lib/colorbrewer/colorbrewer.js"></script>
+<script>
+
+var drop = ["username","activated_at","retained","retained_string","source","user_id"];
+
+var data = dataset.content;
+var headers = d3.keys(data[0]);
+var headers = _.filter(headers,function(d) { return drop.indexOf(d) == -1; });
+
+var p = d3.format(".1%");
+var c = d3.format(",");
+
+var margin = {top: 75, right: 10, bottom: 140, left: 10},
+    width = 800 - margin.left - margin.right,
+    height = 20
+
+var x = d3.scale.linear()
+    .range([0, width]);
+
+drawTopFilter(headers)
+
+FILTER = {};
+display = "count"
+
+headers.forEach(function(h) {
+  FILTER[h] = 1
+})
+
+userObj = getUsers(FILTER)
+drawBarGraph(userObj,display)
+
+
+$( ".filter-input" ).change(function() {
+  var header = $(this).attr("id"),
+      header = header.slice(7,100);
+  
+  var value = $(this).val();
+  
+  FILTER[header] = value;
+  
+  userObj = getUsers(FILTER)
+  drawBarGraph(userObj,display)
+})
+
+$('.btn').click(function(){
+  
+  $(".btn").removeClass("active");
+  $(this).addClass("active");
+  
+  display = $(this).attr("id")
+  drawBarGraph(userObj,display)
+})
+
+function drawTopFilter(headers) {
+  
+  var container = d3.select(".filter-container")
+  
+  container.selectAll(".wrapper")
+      .data(headers)
+    .enter().append("span")
+       .attr("class","wrapper")
+       
+       .html(function(h) { return "<div class='filter'>" + h + "</div><br>"; })
+    .append("input")
+      .attr("class","filter-input")
+      .attr("id",function(d) { return "filter-" + d; })
+      .attr("type","text")
+      .attr("value",1)
+  
+}
+
+function getUsers(filter) {
+  
+  var fd = data;
+  
+  headers.forEach(function(h) {
+    fd = _.filter(fd,function(d){ return d[h] >= filter[h]; });
+  })
+  
+  var all = data.length;
+  var action = fd.length;
+  
+  var retained = _.filter(data,function(d){ return d["retained"] == 1; });
+  var both = _.filter(fd,function(d){ return d["retained"] == 1; });
+  
+  var b1 = retained.length - both.length;
+  var b2 = both.length;
+  var b3 = action - both.length;
+  
+  var score = b2/(b1 + b2 + b3);
+  var retPct = b2/(b2 + b3);
+  var actionPct = b2/(b1 + b2);
+  
+  var arr = {
+      all:all,
+      bars: [b1,b2,b3],
+      score: score,
+      action: action,
+      retPct: retPct,
+      actionPct: actionPct
+  }
+  return arr
+}
+
+function drawBarGraph(barObj,displayType) {
+  
+  d3.select("svg").remove();
+  
+  var bars = barObj.bars,
+      all = barObj.all,
+      barHeight = 30,
+      offset = 240;
+  
+  var r = bars[0] + bars[1],
+      a = bars[1] + bars[2],
+      rNoA = bars[0],
+      ra = bars[1],
+      aNoR = bars[2],
+      noRA = all - bars[0] - bars[1] - bars[2];
+  
+  if (displayType == "count") {
+    denom = 1,
+    f = c;
+  } else {
+    denom = all, 
+    f = p;
+  }
+  
+  var g = d3.select("#graphic").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+  x.domain([0,all])
+  
+  g.append("rect")
+      .attr("class","bar-retain")
+      .attr("x",x(0))
+      .attr("width",x(rNoA))
+      .attr("y",0)
+      .attr("height",barHeight);
+  
+  g.append("rect")
+      .attr("class","bar-both")
+      .attr("x",x(rNoA))
+      .attr("width",x(ra))
+      .attr("y",0)
+      .attr("height",barHeight);
+  
+  g.append("rect")
+      .attr("class","bar-action")
+      .attr("x",x(r))
+      .attr("width",x(aNoR))
+      .attr("y",0)
+      .attr("height",barHeight);
+  
+  g.append("rect")
+      .attr("class","bar-all")
+      .attr("x",x(r + aNoR))
+      .attr("width",x(noRA))
+      .attr("y",0)
+      .attr("height",barHeight);
+  
+  g.selectAll(".legend-line")
+    .data(["#fc9272","#6a51a3","#6baed6","#ccc"])
+  .enter().append("line")
+    .attr("class","legend-line")
+    .attr("x1",function(d,i) { 
+      if (i == 0) { return 25 }
+      else if (i == 1) { return offset; }
+      else if (i == 2) { return width - offset; }
+      else if (i == 3) { return width - 25; }
+    })
+    .attr("x2",function(d,i) { 
+      if (i == 0) { return Math.min(25,x(rNoA)/2); }
+      else if (i == 1) { return x(rNoA + ra/2); }
+      else if (i == 2) { return x(r + aNoR/2); }
+      else if (i == 3) { return Math.max(width - 25,width - x(noRA)); }
+    })
+    .attr("y1",function(d,i) { 
+      if (i == 0) { return 95 - 12; }
+      else if (i == 1) { return 65 - 12; }
+      else if (i == 2) { return 65 - 12; }
+      else if (i == 3) { return 95 - 12; }
+    })
+    .attr("y2",barHeight + 2)
+    .style("stroke",function(d) { return d; })
+
+  g.append("text")
+      .attr("class","legend-text")
+      .attr("x",0)
+      .attr("y",95)
+      .text(f(rNoA/denom) + " users retained but didn't take the chosen actions")
+
+  g.append("text")
+      .attr("class","legend-text")
+      .attr("x",offset)
+      .attr("y",65)
+      .attr("text-anchor","middle")
+      .text(f(ra/denom) + " users took the chosen actions and retained")
+    
+  g.append("text")
+      .attr("class","legend-text")
+      .attr("x",width)
+      .attr("y",95)
+      .attr("text-anchor","end")
+      .text(f(noRA/denom) + " users didn't retain or take the chosen actions")
+    
+  g.append("text")
+     .attr("class","legend-text")
+      .attr("x",width - offset)
+      .attr("y",65)
+      .attr("text-anchor","middle")
+      .text(f(aNoR/denom) + " users took the chosen actions but didn't retain")
+  
+  g.append("text")
+      .attr("class","legend-text-big")
+      .attr("x",width/2)
+      .attr("y",-60)
+      .attr("text-anchor","middle")
+      .text("SHOWING " + c(all) + " TOTAL USERS")
+  
+  g.append("text")
+      .attr("class","legend-text")
+      .attr("x",x(r)/2)
+      .attr("y",-33)
+      .attr("text-anchor","middle")
+      .text(f(r/denom) + " users retained")
+
+  g.append("text")
+      .attr("class","legend-text")
+      .attr("x",function() {
+        
+        if (x(r) >= (x(r + aNoR/2) - 75)) {
+          return x(r) + 3;
+        } else {
+          return x(r + aNoR/2);
+        }
+      })
+      .attr("y",-13)
+      .attr("text-anchor",function () {
+          if (x(r) >= (x(r + aNoR/2) - 75)) {
+            return "left"
+          } else{
+            return "middle"
+          }
+      })
+      .text(f(a/denom) + " took the chosen actions")
+  
+  g.append("path")
+      .attr("class","legend-line")
+      .attr("d","M 0 -1 L 0 -50 L " + width + " -50 L " + width + " -1")
+  
+  g.append("path")
+      .attr("class","legend-line")
+      .attr("d","M 0 -1 L 0 -30 L " + x(r) + " -30 L " + 
+        x(r) + " -1")
+
+  g.append("path")
+      .attr("class","legend-line")
+      .attr("d","M " +  x(rNoA) +" -1 L " +  x(rNoA) + " -10 L " + 
+        x(rNoA + a) + " -10 L " + x(rNoA + a) + " -1")
+  
+  g.append("text")
+      .attr("class","legend-text")
+      .attr("x",width/2)
+      .attr("y",120)
+      .attr("text-anchor","middle")
+      .text(p(ra/r) + " of users who retained also took the chosen actions")
+  
+  g.append("text")
+      .attr("class","legend-text")
+      .attr("x",width/2)
+      .attr("y",140)
+      .attr("text-anchor","middle")
+      .text(p(ra/a) + " of users who took the chosen actions also retained")
+  
+  g.append("text")
+      .attr("class","legend-text bold")
+      .attr("x",width/2)
+      .attr("y",160)
+      .attr("text-anchor","middle")
+      .text(p(ra/(a + rNoA)) + " of users who took retained or took the chosen actions did both")
+  
+}
+
+
+  
+</script>

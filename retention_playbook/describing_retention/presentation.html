@@ -1,0 +1,553 @@
+<link href="https://cdn.rawgit.com/jaz303/tipsy/master/src/stylesheets/tipsy.css" rel="stylesheet" type="text/css">
+<style>
+
+#wrapper {
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  width: 790px;
+  margin: 0 auto;
+  padding-bottom: 10px;
+}
+
+.tipsy { 
+  font-size: 14px;
+  line-height: 20px;
+}
+
+table { border-collapse: collapse; }
+
+p {
+  text-align: center;
+  color: #666;
+}
+
+p.head { 
+  text-align: center;
+  margin-bottom: 2px;
+  font-size: 16px;
+  text-transform: uppercase;
+}
+
+p.subhead { 
+  text-align: center;
+  font-size: 14px;
+  color: #8B979C;
+  margin-bottom: 2px;
+}
+
+th {
+  background-color: #8B979C;
+  color: #fff;
+  font-weight: normal;
+  font-size: 10px;
+  line-height: 20px;
+  border-bottom: 2px solid white;
+  border-right: 2px solid white;
+  text-transform: uppercase;
+}
+
+td {
+  margin: 0px;
+  padding: 8px 5px;
+  width: 100px;
+  font-size: 12px;
+  text-align: right;
+}
+
+hr {
+  height:1px;
+  border:none;
+  color:#ccc; 
+  background-color:#ccc;
+  margin: 30px 0px;
+}
+
+td.major { cursor: pointer; }
+td.footer { border-top: 2px Solid white; cursor: pointer; }
+table.minor { margin-right: 10px; }
+
+td.minor-cell { 
+  width: 65px; 
+  padding-right: 20px; 
+}
+
+.question {
+  cursor: pointer;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  background-color: #89A4CC;
+  line-height: 16px;
+  color: White;
+  font-size: 12px;
+  border-radius: 8px;
+  text-align: center;
+  position: relative;
+}
+
+.question:hover { background-color: #3D6199; }
+
+.tooltip {
+  background-color: #303030;
+  position: absolute;
+  right: 20px;
+  top: -100px;
+  z-index: 1000000;
+  width: 450px;
+  border-radius: 5px;
+  border: 2px solid black;
+}
+
+.tooltip p {
+  margin: 10px;
+  color: #E6E6E6;
+  padding: 10px;
+  font-weight: normal;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size:13px;
+  text-align: left;
+}
+
+</style>
+<div id="wrapper">
+  <p class="head">Table 1: Retention Percentage</p>
+  <p class="subhead">Periods after signup</p> 
+  <div style="float:left" id='table-1-l'></div>
+  <div id='table-1'></div>
+  <hr>
+  
+  <p class="head">Table 2: Churn Rate</p>
+  <p class="subhead">Periods after signup</p> 
+  <div style="float:left" id='table-2-l'></div>
+  <div id='table-2'></div>
+  <hr>
+  
+  <p class="head">Table 3: Churn Rate from Previous Period</p>
+  <p class="subhead">Periods after signup</p> 
+  <div style="float:left" id='table-3-l'></div>
+  <div id='table-3'></div>
+</div>
+
+<script src="//cdn.rawgit.com/mbostock/d3/master/lib/colorbrewer/colorbrewer.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore-min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/jquery.tipsy/1.0.2/jquery.tipsy.min.js"></script>
+<script>
+
+var f = d3.format(".0f");
+var pp = d3.format(".1%");
+var c = d3.format(",")
+var formatDate = d3.time.format('%m-%d-%y');
+var formatDateText = d3.time.format('%B %d, %y');
+var r = d3.time.format("%Y-%m-%dT%H:%M:%S.000Z").parse;
+
+function p(time) { 
+  var t = new Date(Date.parse(time));
+  return r(t.toISOString());
+ }
+
+var table1l = d3.select("#table-1-l").append("table").attr("class","minor");
+var table2l = d3.select("#table-2-l").append("table").attr("class","minor");
+var table3l = d3.select("#table-3-l").append("table").attr("class","minor");
+
+var table1 = d3.select("#table-1").append("table");
+var table2 = d3.select("#table-2").append("table");
+var table3 = d3.select("#table-3").append("table");
+
+data = dataset.content;
+  
+var reds = colorbrewer.Reds[9]
+var blues = colorbrewer.Blues[9];
+
+var signups = data.filter(function(d) { return d.user_period == 1; });
+var totalSignups = d3.sum(_.pluck(signups,"signups"));
+
+retainedByDate = pivot(data,'retention_date','signup_date',['retained_users'],'');
+percentOfRetained = pivot(data,'user_period','signup_date',['retained_users'],'signups');
+retainedByAge = pivot(data,'user_period','signup_date',['retained_users'],'');
+monthlyChurn = monthlyChurnPivot(retainedByAge[0],retainedByAge[1],signups);
+percentChurn = monthlyChurnRate(monthlyChurn[0],retainedByAge[1],signups)
+nextMonthPercentChurn = nextMonthPercentChurn(monthlyChurn[0],retainedByAge[0],retainedByAge[1],signups)
+
+drawLeftTable(table1l,signups);
+drawLeftTable(table2l,signups);
+drawLeftTable(table3l,signups);
+
+drawTable(1,table1,percentOfRetained[0],percentOfRetained[1],false,percentOfRetained[2],true,blues,true);
+drawTable(2,table2,percentChurn[0],percentChurn[1],false,percentChurn[2],true,reds,true);
+drawTable(3,table3,nextMonthPercentChurn[0],nextMonthPercentChurn[1],false,nextMonthPercentChurn[2],true,reds,true);
+
+function drawTable(tableNumber,tableObj,data,headerData,headerIsDate,footer,includeFooter,colors,isPercent) {
+  
+  var valArray = [];
+  
+  data.forEach(function(d) {
+    d.columns.forEach(function(c) {
+        valArray.push(c.val); 
+    })
+  })
+  
+  if (includeFooter == true) {
+    var range = d3.extent(valArray.concat(footer));  
+  } else {
+    var range = d3.extent(valArray);
+  }
+  
+  var cScale = d3.scale.quantize()
+    .domain(range)
+    .range(colors);
+  
+  var textColor = ['#000000','#000000','#000000','#000000','#000000','#000000','#e6e6e6','#e6e6e6','#e6e6e6'];
+  
+  var tScale = d3.scale.quantize()
+    .domain(range)
+    .range(textColor);
+  
+  tableObj
+      .selectAll("th")
+      .data(headerData)
+      .enter().append("th")
+      .text(function(d) {if (headerIsDate == true) { return formatDate(p(d)); }
+        else { return d; }});
+    
+  tableObj
+      .selectAll("tr")
+      .data(data)
+    .enter().append("tr")
+      .selectAll("td")
+      .data(function(d) { return d.columns;})
+    .enter().append("td")
+      .text(function(d) { return cellFormat(d.val,isPercent); })
+      .attr("class",function(d) { if (d.val != null) { return "major"; } })
+      .attr("title",function(d) { if (d.val != null) {
+          return hoverTextMajor(d,tableNumber)
+      }})
+      .style("background",function(d) { if (d.val != null) {return cScale(d.val); }})
+      .style("color",function(d) { if (d != null) { return tScale(d.val); }});
+
+  tableObj
+      .selectAll("tfoot")
+      .data([1])
+    .enter().append("tr")
+      .selectAll("td")
+      .data(footer)
+    .enter().append("td")
+      .text(function(d) { return cellFormat(d,isPercent); })
+      .attr("class","footer")
+      .attr("title",function(d,i) { return hoverTextMinor(d,i,tableNumber); })
+      .style("background",function(d) { if (d != null && includeFooter == true) {return cScale(d); }})
+      .style("color",function(d) { if (d != null && includeFooter == true) {console.log(tScale(d)); return tScale(d); }});
+    
+  $('.major').tipsy({gravity:"se",opacity:1});
+  $('.footer').tipsy({gravity:"se",opacity:1});
+}
+
+function drawLeftTable(tableObj,data) {
+  
+  var vals = [];
+  
+  data.forEach(function(d) {
+    var obj = [ d.signup_date, d.signups]
+    vals.push(obj);
+  })
+    
+  tableObj
+      .selectAll("th")
+      .data(['Date','New Users'])
+      .enter().append("th")
+      .text(function(d) { return d; });
+    
+  tableObj
+      .selectAll("tr")
+      .data(vals)
+    .enter().append("tr")
+      .selectAll("td")
+      .data(function(d) { return d; })
+    .enter().append("td")
+      .attr("class","minor-cell")
+      .text(function(d,i) { if (i == 0) {
+        return formatDate(p(d)); 
+      } else {
+        return f(d);
+      }})
+      .style("font-size", "12px");
+  
+  tableObj
+      .selectAll("tfoot")
+      .data([1])
+    .enter().append("tr")
+      .selectAll("td")
+      .data(["Total",c(totalSignups)])
+    .enter().append("td")
+      .attr("class","footer minor-cell")
+      .text(function(d) { return d; })
+      
+}
+
+function pivot(data,columnName,rowName,valueNumAdd,valueDenom) {
+  
+  var allHeaders = _.pluck(data,columnName);
+  var allRows = _.pluck(data,rowName);
+  
+  var headers = _.uniq(allHeaders);
+  var rows = _.uniq(allRows);
+  
+  var footerNum = [];
+  var footerDenom = [];
+  
+  headers.forEach(function(d) { 
+    footerNum.push(0);
+    footerDenom.push(0);
+  });
+  
+  var result = [];
+  
+  rows.forEach(function (r) {
+    
+    var row = {head: r};
+    var columns = [];
+    var filterRow = data.filter(function(d) { return d[rowName] == r; })
+    
+    headers.forEach(function(h,i) {
+
+      var ft = filterRow.filter(function(d) { return d[columnName] == h; })
+      
+      if (ft == '') { 
+        val = null; 
+      } else if (ft[0][valueDenom] == 0) { 
+        val = 0; 
+      } else {
+        var numerator = 0;
+        var denominator = 0;
+        
+        valueNumAdd.forEach(function(v) { numerator += (ft[0][v]) * 1; })
+        
+        if (valueDenom != '') { 
+          denominator = ft[0][valueDenom];
+          footerDenom[i] += +denominator;
+        } else {
+          denominator = 1;
+          footerDenom[i] = 1;
+        }
+        
+        val = numerator/denominator;
+        
+        footerNum[i] += numerator
+      }
+      
+      columns.push( {head:r,column:h,val:val} );
+    })
+    
+    row.columns = columns;
+    result.push(row);
+    
+  })
+  
+  var footer = [];
+  
+  footerNum.forEach(function(d,i) {
+    var denom = footerDenom[i];
+    if (denom == 0) { denom = 1; }
+    footer.push(d/denom);
+  })
+  
+  return [result,headers,footer]
+  
+}
+
+function monthlyChurnPivot(retainedByAge,header,signups) {
+
+  var result = [];
+  
+  retainedByAge.forEach(function(row,i) {
+    
+    var rowEntry = {head: row.head};
+    var columns = [];
+    
+    row.columns.forEach(function(cell,j) {
+      
+      var end = retainedByAge[i].columns[j].val;
+      
+      if (end == null) {
+        var val = null;
+      } else if (j != 0) {
+        var val = retainedByAge[i].columns[j - 1].val - end
+      } else {
+        var val = signups[i].signups - end
+      }
+      columns.push( {head:row.head, column:header[j], val:val} );
+    })
+    
+    rowEntry.columns = columns;
+    result.push(rowEntry);
+  })
+  
+  return [result,header]
+}
+
+function monthlyChurnRate(monthlyChurn,header,signups) {
+
+  var result = [];
+  
+  var footerNum = [];
+  var footerDenom = [];
+  
+  header.forEach(function(d) { 
+    footerNum.push(0);
+    footerDenom.push(0);
+  });
+  
+  monthlyChurn.forEach(function(row,i) {
+    
+    var rowEntry = {head: row.head};
+    var columns = [];
+    
+    row.columns.forEach(function(cell,j) {
+      
+      var numerator = monthlyChurn[i].columns[j].val;
+      var denominator = signups[i].signups;
+      
+      if (numerator != null) { footerDenom[j] += +denominator; }
+      if (numerator != null) { footerNum[j] += +numerator; }
+      
+      if (numerator == null) {
+        var val = null;
+      } else if (denominator == 0) {
+        var val = 0;
+      } else {
+        var val = numerator/denominator;
+      }
+      columns.push( {head:row.head, column:header[j],val:val} );
+    })
+    
+    rowEntry.columns = columns;
+    result.push(rowEntry);
+  })
+  
+  var footer = [];
+  
+  footerNum.forEach(function(d,i) {
+    
+    var denom = footerDenom[i];
+    if (denom == 0) { denom = 1; }
+    footer.push(d/denom);
+  })
+  
+  return [result,header,footer]
+}
+
+function nextMonthPercentChurn(monthlyChurn,retainedByAge,header,signups) {
+
+  var result = [];
+  
+  var footerNum = [];
+  var footerDenom = [];
+  
+  header.forEach(function(d) { 
+    footerNum.push(0);
+    footerDenom.push(0);
+  });
+  
+  monthlyChurn.forEach(function(row,i) {
+    
+    var rowEntry = {head: row.head};
+    var columns = [];
+    
+    row.columns.forEach(function(cell,j) {
+      
+      var numerator = monthlyChurn[i].columns[j].val;
+      
+      if (j != 0) {
+        var denominator = retainedByAge[i].columns[j-1].val;
+      } else {
+        denominator = signups[i].signups;
+      }
+      
+      if (numerator == null) {
+        var val = null;
+      } else if (denominator == 0) {
+        var val = 0;
+      } else {
+        var val = numerator/denominator;
+      }
+      columns.push( {head: row.head,column:header[j],val:val} );
+      
+      if (numerator != null) { footerDenom[j] += +denominator; }
+      if (numerator != null) { footerNum[j] += +numerator; }
+    })
+    
+    rowEntry.columns = columns;
+    result.push(rowEntry);
+  })
+  
+  var footer = [];
+  
+  footerNum.forEach(function(d,i) {
+    
+    var denom = footerDenom[i];
+    if (denom == 0) { denom = 1; }
+    footer.push(d/denom);
+  })
+  
+  return [result,header,footer]
+}
+
+function cellFormat(value,isPercent) {
+  if (value == null) {
+    return null;
+  } else if (isPercent == true) {
+    return pp(value);
+  } else {
+    return f(value);
+  }
+}
+
+function hoverTextMajor(d,tableNumber) {
+  if (tableNumber == 1) {
+    return cellFormat(d.val,true) + 
+      " of users who signed up during the period of " + 
+      formatDateText(p(d.head)) + " came back " + 
+      d.column + " periods later. ";
+  } else if (tableNumber == 2) {
+    return cellFormat(d.val,true) + 
+      " of users who signed up during the period of " + 
+      formatDateText(p(d.head)) + " churned " + 
+      d.column + " periods later. ";
+  } else if (tableNumber == 3) {
+    return cellFormat(d.val,true) + 
+      " of users who signed up the period of " + 
+      formatDateText(p(d.head)) + " and retained for " + 
+      (d.column - 1) + " periods churned in their " +
+      sfx(d.column) + " period.";
+  }
+}
+
+function hoverTextMinor(d,i,tableNumber) {
+  if (tableNumber == 1) {
+    return cellFormat(d,true) + 
+      " of users who signed up came back " + 
+      i + " periods later. ";
+  } else if (tableNumber == 2) {
+    return cellFormat(d,true) + 
+      " of users who signed up churned " + 
+      i + " periods later. ";
+  } else if (tableNumber == 3) {
+    return cellFormat(d,true) + 
+      " of users who signed up and retained for " + 
+      (i - 1) + " periods churned in their " +
+      sfx(i) + " period.";
+  }
+}
+
+function sfx(int) {
+  if (int == 11) { return "11th"; }
+  else if (int == 12) { return "12th"; }
+  else if (int == 13) { return "13th"; }
+  else if (int % 10 == 1) { return int + "st"; }
+  else if (int % 10 == 2) { return int + "nd"; }
+  else if (int % 10 == 3) { return int + "rd"; }
+  else { return int + "th"; }
+}
+
+
+  
+</script>
