@@ -1,7 +1,7 @@
 playbook
 ========
 
-Welcome to the Mode Playbook! Playbook is a repository of open-source SQL queries and visualizations you can tailor to your data. All the reports are designed to be used in [Mode](http://www.modeanalytics.com/), and live examples are available there. 
+Welcome to the Mode Playbook! Playbook is a repository of open-source SQL queries and visualizations you can tailor to your data. All the reports are designed to be used in [Mode](http://www.modeanalytics.com/), and live examples are available in Mode and on the [Playbook](http://about.modeanalytics.com/playbook) page.
 
 ![example_img](https://modeanalytics.zendesk.com/hc/en-us/article_attachments/201565660/How_Users_Move_Through_Your_Product___Mode.png)
 
