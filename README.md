@@ -11,4 +11,4 @@ Playbook reports are designed to answer common questions that many companies ask
 
 To read more, see the [Playbook](http://about.modeanalytics.com/playbook) page on Mode. [Additional documentation](https://modeanalytics.zendesk.com/hc/en-us/articles/203511970-Playbook-Overview) is also available.
 
-If you have comments, suggestions for improvements, requests for additional reports—or best of all, analysis that you too would like to open source—we'd love to hear from you. We can be reached at hi@modeanalytics.com (mailto:hi@modeanalytics.com).
+If you have comments, suggestions for improvements, requests for additional reports—or best of all, analysis that you too would like to open source—we'd love to hear from you. We can be reached at [hi@modeanalytics.com](mailto:hi@modeanalytics.com).
