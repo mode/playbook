@@ -50,6 +50,7 @@ td {
   margin: 0px;
   padding: 8px 5px;
   width: 100px;
+  height: 14px;
   font-size: 12px;
   text-align: right;
 }
@@ -65,6 +66,7 @@ hr {
 td.major { cursor: pointer; }
 td.footer { border-top: 2px Solid white; cursor: pointer; }
 table.minor { margin-right: 10px; }
+
 
 td.minor-cell { 
   width: 65px; 
@@ -154,91 +156,125 @@ var table2 = d3.select("#table-2").append("table");
 var table3 = d3.select("#table-3").append("table");
 
 data = dataset.content;
-  
-var reds = colorbrewer.Reds[9]
-var blues = colorbrewer.Blues[9];
 
-var signups = data.filter(function(d) { return d.user_period == 1; });
-var totalSignups = d3.sum(_.pluck(signups,"signups"));
+data.forEach(function(d) {
+  var maxAge = d3.max(_.pluck(_.where(data,{signup_date:d.signup_date}),"user_period"))
+  d["max_age"] = maxAge
+})
 
-retainedByDate = pivot(data,'retention_date','signup_date',['retained_users'],'');
-percentOfRetained = pivot(data,'user_period','signup_date',['retained_users'],'signups');
-retainedByAge = pivot(data,'user_period','signup_date',['retained_users'],'');
-monthlyChurn = monthlyChurnPivot(retainedByAge[0],retainedByAge[1],signups);
-percentChurn = monthlyChurnRate(monthlyChurn[0],retainedByAge[1],signups)
-nextMonthPercentChurn = nextMonthPercentChurn(monthlyChurn[0],retainedByAge[0],retainedByAge[1],signups)
+var reds = colorbrewer.Reds[9],
+    blues = colorbrewer.Blues[9];
+
+var signups = data.filter(function(d) { return d.user_period == 0; }),
+    totalSignups = d3.sum(_.pluck(signups,"retained_users"));
+
+var dateOrder = d3.map();
+
+signups.forEach(function(d,i) { dateOrder.set(d.signup_date, i); })
+
+var tableData = getData(data);
 
 drawLeftTable(table1l,signups);
 drawLeftTable(table2l,signups);
 drawLeftTable(table3l,signups);
 
-drawTable(1,table1,percentOfRetained[0],percentOfRetained[1],false,percentOfRetained[2],true,blues,true);
-drawTable(2,table2,percentChurn[0],percentChurn[1],false,percentChurn[2],true,reds,true);
-drawTable(3,table3,nextMonthPercentChurn[0],nextMonthPercentChurn[1],false,nextMonthPercentChurn[2],true,reds,true);
+drawTable(table1,tableData,"retained",blues)
+drawTable(table2,tableData,"churn",reds)
+drawTable(table3,tableData,"previousChurn",reds)
 
-function drawTable(tableNumber,tableObj,data,headerData,headerIsDate,footer,includeFooter,colors,isPercent) {
+function drawTable(tableObj,fullDataObject,type,colors) {
   
-  var valArray = [];
+  var tableData = fullDataObject[0],
+      footerData = fullDataObject[1];
   
-  data.forEach(function(d) {
-    d.columns.forEach(function(c) {
-        valArray.push(c.val); 
+  var headers = _.sortBy(
+    _.filter(
+      _.uniq(
+        _.pluck(data,"user_period")
+      ),
+    function (d) { return d > 0; }),
+  function(d) { return d; });
+  
+  var fillData = [];
+  
+  signups.forEach(function(s,i) {
+    var row = [];
+    headers.forEach(function(h) {
+      row.push({date:i,column:h})
     })
+    fillData.push(row)
   })
   
-  if (includeFooter == true) {
-    var range = d3.extent(valArray.concat(footer));  
-  } else {
-    var range = d3.extent(valArray);
-  }
+  var rangeMin = 1;
+  var rangeMax = 0;
+  var dates = [];
+  
+  tableData.forEach(function(d) {
+    var localMax = d3.max(_.pluck(d,type));
+    var localMin = d3.min(_.pluck(d,type));
+    
+    rangeMax = Math.max(rangeMax,localMax);
+    rangeMin = Math.min(rangeMin,localMin);
+  })
   
   var cScale = d3.scale.quantize()
-    .domain(range)
-    .range(colors);
+      .domain([rangeMin,rangeMax])
+      .range(colors);
   
   var textColor = ['#000000','#000000','#000000','#000000','#000000','#000000','#e6e6e6','#e6e6e6','#e6e6e6'];
   
   var tScale = d3.scale.quantize()
-    .domain(range)
-    .range(textColor);
+      .domain([rangeMin,rangeMax])
+      .range(textColor);
   
   tableObj
       .selectAll("th")
-      .data(headerData)
+      .data(headers)
       .enter().append("th")
-      .text(function(d) {if (headerIsDate == true) { return formatDate(p(d)); }
-        else { return d; }});
+      .text(function(d) { return d; });
     
   tableObj
       .selectAll("tr")
-      .data(data)
+      .data(fillData)
     .enter().append("tr")
       .selectAll("td")
-      .data(function(d) { return d.columns;})
+      .data(function(d) { return d; })
     .enter().append("td")
-      .text(function(d) { return cellFormat(d.val,isPercent); })
-      .attr("class",function(d) { if (d.val != null) { return "major"; } })
-      .attr("title",function(d) { if (d.val != null) {
-          return hoverTextMajor(d,tableNumber)
-      }})
-      .style("background",function(d) { if (d.val != null) {return cScale(d.val); }})
-      .style("color",function(d) { if (d != null) { return tScale(d.val); }});
+      .attr("id",function(d) { return type + "-" + d.date + "-" + d.column;})
+      
+      
+      
+  tableData.forEach(function(row,i) {
+    row.forEach(function(r) {
+      
+      var rowNumber = dateOrder.get(r.date)
+      
+      d3.selectAll("#" + type + "-" + rowNumber + "-" + r.period)
+        .text(function() { if (r.period != -1) { return pp(r[type]); } })
+        .attr("class",function() { if (r != null && r.period != -1) { return "major"; } })
+        .attr("title",function() { if (r != null && r.period != -1) { return hoverTextMajor(r,type); }})
+        .style("background",function() { if (r != null && r.period != -1) {return cScale(r[type]); }})
+        .style("color",function() { if (r != null && r.period != -1) { return tScale(r[type]); }});
+      
+    })
+  })
 
   tableObj
       .selectAll("tfoot")
       .data([1])
     .enter().append("tr")
       .selectAll("td")
-      .data(footer)
+      .data(footerData)
     .enter().append("td")
-      .text(function(d) { return cellFormat(d,isPercent); })
+      .text(function(d) { return pp(d[type]); })
       .attr("class","footer")
-      .attr("title",function(d,i) { return hoverTextMinor(d,i,tableNumber); })
-      .style("background",function(d) { if (d != null && includeFooter == true) {return cScale(d); }})
-      .style("color",function(d) { if (d != null && includeFooter == true) {console.log(tScale(d)); return tScale(d); }});
+      .attr("title",function(d) { if (d != null) { return hoverTextMinor(d,type); }})
+      .style("background",function(d) { if (d != null) {return cScale(d[type]); }})
+      .style("color",function(d) { if (d != null) { return tScale(d[type]); }});
     
   $('.major').tipsy({gravity:"se",opacity:1});
   $('.footer').tipsy({gravity:"se",opacity:1});
+  
 }
 
 function drawLeftTable(tableObj,data) {
@@ -246,9 +282,11 @@ function drawLeftTable(tableObj,data) {
   var vals = [];
   
   data.forEach(function(d) {
-    var obj = [ d.signup_date, d.signups]
+    var obj = [p(d.signup_date), d.retained_users]
     vals.push(obj);
   })
+  
+  vals = _.sortBy(vals, function(d){ return d[0]; });
     
   tableObj
       .selectAll("th")
@@ -265,9 +303,9 @@ function drawLeftTable(tableObj,data) {
     .enter().append("td")
       .attr("class","minor-cell")
       .text(function(d,i) { if (i == 0) {
-        return formatDate(p(d)); 
+        return formatDate(d); 
       } else {
-        return f(d);
+        return c(d);
       }})
       .style("font-size", "12px");
   
@@ -283,258 +321,112 @@ function drawLeftTable(tableObj,data) {
       
 }
 
-function pivot(data,columnName,rowName,valueNumAdd,valueDenom) {
+function getData(data) {
+  var headers = _.sortBy(_.uniq(_.pluck(data,"user_period")),function(d) { return p(d); });
+  var dates = _.sortBy(_.uniq(_.pluck(data,"signup_date")),function(d) { return p(d); });
   
-  var allHeaders = _.pluck(data,columnName);
-  var allRows = _.pluck(data,rowName);
+  var tableObject = [];
+  var footerObject = [];
   
-  var headers = _.uniq(allHeaders);
-  var rows = _.uniq(allRows);
-  
-  var footerNum = [];
-  var footerDenom = [];
-  
-  headers.forEach(function(d) { 
-    footerNum.push(0);
-    footerDenom.push(0);
-  });
-  
-  var result = [];
-  
-  rows.forEach(function (r) {
+  dates.forEach(function(d,i) {
     
-    var row = {head: r};
-    var columns = [];
-    var filterRow = data.filter(function(d) { return d[rowName] == r; })
+    var row = [];
     
-    headers.forEach(function(h,i) {
-
-      var ft = filterRow.filter(function(d) { return d[columnName] == h; })
-      
-      if (ft == '') { 
-        val = null; 
-      } else if (ft[0][valueDenom] == 0) { 
-        val = 0; 
-      } else {
-        var numerator = 0;
-        var denominator = 0;
+    var dateFilter = _.where(data,{signup_date:d});
+    
+    var signups = _.where(dateFilter,{user_period:0})[0].retained_users;
+    
+    headers.forEach(function(h) {
+    
+      // Calculate footer values
+      if (i == 0 && h > 0) {
+        var ageFilter = _.filter(data,function(d) { return d.max_age >= h; })
         
-        valueNumAdd.forEach(function(v) { numerator += (ft[0][v]) * 1; })
+        var allSignups = d3.sum(_.pluck(_.where(ageFilter,{user_period:0}),"retained_users"));
+        var allRetained = d3.sum(_.pluck(_.where(ageFilter,{user_period:h}),"retained_users"));
+        var allPrevious = d3.sum(_.pluck(_.where(ageFilter,{user_period:Math.max(h - 1,0)}),"retained_users"));
         
-        if (valueDenom != '') { 
-          denominator = ft[0][valueDenom];
-          footerDenom[i] += +denominator;
-        } else {
-          denominator = 1;
-          footerDenom[i] = 1;
+        var footerCell = {
+          period: h,
+          retained: allRetained/allSignups,
+          churn: (allPrevious - allRetained)/allSignups,
+          previousChurn: (allPrevious - allRetained)/allPrevious
         }
         
-        val = numerator/denominator;
+        footerObject.push(footerCell)
+      }
+      
+      // Calculate values for cell
+      var currentPeriod = _.where(dateFilter,{user_period:h});
+      var previousPeriod = _.where(dateFilter,{user_period:Math.max(h - 1,0)});
+      
+      var maxAge = d3.max(_.pluck(dateFilter,"max_age"));
+      
+      if (maxAge >= h && h > 0) {
         
-        footerNum[i] += numerator
+        var retained = 0,
+            previous = 0;
+        
+        if (currentPeriod.length != 0) { retained = currentPeriod[0].retained_users; }
+        if (previousPeriod.length != 0) { previous = previousPeriod[0].retained_users; }
+        
+        // Handle division by 0 for previous period churn
+        if (previous == 0) { pc = 0; } else { pc = (previous - retained)/previous; }
+        
+        cell = { 
+          date: d,
+          period: h,
+          signups:signups,
+          retained:retained/signups,
+          churn:(previous - retained)/signups,
+          previousChurn:pc
+        };
+                   
+        row.push(cell)
       }
-      
-      columns.push( {head:r,column:h,val:val} );
     })
     
-    row.columns = columns;
-    result.push(row);
+    if (row.length > 0) { tableObject.push(row); }
     
   })
   
-  var footer = [];
-  
-  footerNum.forEach(function(d,i) {
-    var denom = footerDenom[i];
-    if (denom == 0) { denom = 1; }
-    footer.push(d/denom);
-  })
-  
-  return [result,headers,footer]
-  
+  return [tableObject,footerObject];
 }
 
-function monthlyChurnPivot(retainedByAge,header,signups) {
-
-  var result = [];
-  
-  retainedByAge.forEach(function(row,i) {
-    
-    var rowEntry = {head: row.head};
-    var columns = [];
-    
-    row.columns.forEach(function(cell,j) {
-      
-      var end = retainedByAge[i].columns[j].val;
-      
-      if (end == null) {
-        var val = null;
-      } else if (j != 0) {
-        var val = retainedByAge[i].columns[j - 1].val - end
-      } else {
-        var val = signups[i].signups - end
-      }
-      columns.push( {head:row.head, column:header[j], val:val} );
-    })
-    
-    rowEntry.columns = columns;
-    result.push(rowEntry);
-  })
-  
-  return [result,header]
-}
-
-function monthlyChurnRate(monthlyChurn,header,signups) {
-
-  var result = [];
-  
-  var footerNum = [];
-  var footerDenom = [];
-  
-  header.forEach(function(d) { 
-    footerNum.push(0);
-    footerDenom.push(0);
-  });
-  
-  monthlyChurn.forEach(function(row,i) {
-    
-    var rowEntry = {head: row.head};
-    var columns = [];
-    
-    row.columns.forEach(function(cell,j) {
-      
-      var numerator = monthlyChurn[i].columns[j].val;
-      var denominator = signups[i].signups;
-      
-      if (numerator != null) { footerDenom[j] += +denominator; }
-      if (numerator != null) { footerNum[j] += +numerator; }
-      
-      if (numerator == null) {
-        var val = null;
-      } else if (denominator == 0) {
-        var val = 0;
-      } else {
-        var val = numerator/denominator;
-      }
-      columns.push( {head:row.head, column:header[j],val:val} );
-    })
-    
-    rowEntry.columns = columns;
-    result.push(rowEntry);
-  })
-  
-  var footer = [];
-  
-  footerNum.forEach(function(d,i) {
-    
-    var denom = footerDenom[i];
-    if (denom == 0) { denom = 1; }
-    footer.push(d/denom);
-  })
-  
-  return [result,header,footer]
-}
-
-function nextMonthPercentChurn(monthlyChurn,retainedByAge,header,signups) {
-
-  var result = [];
-  
-  var footerNum = [];
-  var footerDenom = [];
-  
-  header.forEach(function(d) { 
-    footerNum.push(0);
-    footerDenom.push(0);
-  });
-  
-  monthlyChurn.forEach(function(row,i) {
-    
-    var rowEntry = {head: row.head};
-    var columns = [];
-    
-    row.columns.forEach(function(cell,j) {
-      
-      var numerator = monthlyChurn[i].columns[j].val;
-      
-      if (j != 0) {
-        var denominator = retainedByAge[i].columns[j-1].val;
-      } else {
-        denominator = signups[i].signups;
-      }
-      
-      if (numerator == null) {
-        var val = null;
-      } else if (denominator == 0) {
-        var val = 0;
-      } else {
-        var val = numerator/denominator;
-      }
-      columns.push( {head: row.head,column:header[j],val:val} );
-      
-      if (numerator != null) { footerDenom[j] += +denominator; }
-      if (numerator != null) { footerNum[j] += +numerator; }
-    })
-    
-    rowEntry.columns = columns;
-    result.push(rowEntry);
-  })
-  
-  var footer = [];
-  
-  footerNum.forEach(function(d,i) {
-    
-    var denom = footerDenom[i];
-    if (denom == 0) { denom = 1; }
-    footer.push(d/denom);
-  })
-  
-  return [result,header,footer]
-}
-
-function cellFormat(value,isPercent) {
-  if (value == null) {
-    return null;
-  } else if (isPercent == true) {
-    return pp(value);
-  } else {
-    return f(value);
-  }
-}
-
-function hoverTextMajor(d,tableNumber) {
-  if (tableNumber == 1) {
-    return cellFormat(d.val,true) + 
+function hoverTextMajor(d,type) {
+  if (type == "retained") {
+    return pp(d[type]) + 
       " of users who signed up during the period of " + 
-      formatDateText(p(d.head)) + " came back " + 
-      d.column + " periods later. ";
-  } else if (tableNumber == 2) {
-    return cellFormat(d.val,true) + 
+      formatDateText(p(d.date)) + " came back " + 
+      d.period + " periods later. ";
+  } else if (type == "churn") {
+    return pp(d[type]) + 
       " of users who signed up during the period of " + 
-      formatDateText(p(d.head)) + " churned " + 
-      d.column + " periods later. ";
-  } else if (tableNumber == 3) {
-    return cellFormat(d.val,true) + 
+      formatDateText(p(d.date)) + " churned " + 
+      d.period + " periods later. ";
+  } else if (type == "previousChurn") {
+    return pp(d[type]) + 
       " of users who signed up the period of " + 
-      formatDateText(p(d.head)) + " and retained for " + 
-      (d.column - 1) + " periods churned in their " +
-      sfx(d.column) + " period.";
+      formatDateText(p(d.date)) + " and retained for " + 
+      (d.period - 1) + " periods churned in their " +
+      sfx(d.period) + " period.";
   }
 }
 
-function hoverTextMinor(d,i,tableNumber) {
-  if (tableNumber == 1) {
-    return cellFormat(d,true) + 
+function hoverTextMinor(d,type) {
+  if (type == "retained") {
+    return pp(d[type]) + 
       " of users who signed up came back " + 
-      i + " periods later. ";
-  } else if (tableNumber == 2) {
-    return cellFormat(d,true) + 
+      d.period + " periods later. ";
+  } else if (type == "churn") {
+    return pp(d[type]) + 
       " of users who signed up churned " + 
-      i + " periods later. ";
-  } else if (tableNumber == 3) {
-    return cellFormat(d,true) + 
+      d.period + " periods later. ";
+  } else if (type == "previousChurn") {
+    return pp(d[type]) + 
       " of users who signed up and retained for " + 
-      (i - 1) + " periods churned in their " +
-      sfx(i) + " period.";
+      (d.period - 1) + " periods churned in their " +
+      sfx(d.period) + " period.";
   }
 }
 
@@ -548,6 +440,4 @@ function sfx(int) {
   else { return int + "th"; }
 }
 
-
-  
 </script>

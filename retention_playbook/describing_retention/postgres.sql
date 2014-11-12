@@ -16,39 +16,37 @@ events AS (
     FROM benn.sample_event_table
 )
 
+SELECT DATE_TRUNC('{{time_interval}}',u.activated_at) AS signup_date,
 
-SELECT DATE_TRUNC('day',z.activated_at) AS signup_date,
-       z.counter AS user_period,
-       COUNT(z.user_id) AS signups,
-       COUNT(CASE WHEN events > 0 THEN z.user_id ELSE NULL END) AS retained_users
-  FROM (
+{% if time_interval == 'month' %}
+       (DATE_PART('year',e.occurred_at) - DATE_PART('year',u.activated_at)) * 12 +
+          (DATE_PART('month',e.occurred_at) - DATE_PART('month',u.activated_at)) AS user_period,
+{% elsif time_interval == 'week' %}
+       TRUNC(DATE_PART('day',e.occurred_at - u.activated_at)/7) AS user_period,
+{% elsif time_interval == 'day' %}
+       DATE_PART('day',e.occurred_at - u.activated_at) AS user_period,
+{% endif %}
 
-SELECT u.user_id,
-       u.counter,
-       u.activated_at,
-       u.period_start,
-       COUNT(e.user_id) AS events
-  FROM (
-        SELECT user_id,
-               activated_at,
-               activated_at + (counter * INTERVAL '1 day') AS period_start,
-               activated_at + ((counter + 1) * INTERVAL '1 day') AS period_end,
-               counter
-          FROM users u
-          JOIN (SELECT s.a AS counter FROM generate_series(1,9) AS s(a)) c
-            ON c.counter < 10
-           AND c.counter > 0
-         WHERE u.activated_at >= '2014-10-31'::TIMESTAMP - INTERVAL '11 day'
-       ) u
-  LEFT JOIN events e
+       COUNT(DISTINCT e.user_id) AS retained_users
+  FROM users u
+  JOIN events e
     ON e.user_id = u.user_id
-   AND e.occurred_at >= u.period_start
-   AND e.occurred_at < u.period_end
-   AND e.event_name = 'engagement_event'
-   AND e.occurred_at >= '2014-10-31'::TIMESTAMP - INTERVAL '11 day'
- WHERE u.period_start <= '2014-10-31'::TIMESTAMP
- GROUP BY 1,2,3,4
-       ) z
+   AND e.occurred_at >= u.activated_at
+   AND e.occurred_at <= '2014-10-31'::TIMESTAMP
+ WHERE u.activated_at >= '2014-10-31'::TIMESTAMP - INTERVAL '11 {{time_interval}}'
+   AND u.activated_at <= '2014-10-31'::TIMESTAMP
  GROUP BY 1,2
  ORDER BY 1,2
 LIMIT 100
+
+
+{% form %}
+
+time_interval:
+  type: select
+  default: month
+  options: [[week, week],
+            [month, month]
+           ]
+           
+{% endform %}
