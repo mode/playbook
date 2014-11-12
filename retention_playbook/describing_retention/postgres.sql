@@ -19,12 +19,11 @@ events AS (
 SELECT DATE_TRUNC('{{time_interval}}',u.activated_at) AS signup_date,
 
 {% if time_interval == 'month' %}
-       (DATE_PART('year',e.occurred_at) - DATE_PART('year',u.activated_at)) * 12 +
-          (DATE_PART('month',e.occurred_at) - DATE_PART('month',u.activated_at)) AS user_period,
+       (EXTRACT('year' FROM e.occurred_at) - EXTRACT('year' FROM u.activated_at)) * 12 + 
+       (EXTRACT('month' FROM e.occurred_at) - EXTRACT('month' FROM u.activated_at)) - 
+       CASE WHEN (CEILING(DATE_PART('day',e.occurred_at) - DATE_PART('day',u.activated_at))) < 0 THEN 1 ELSE 0 END AS user_period,
 {% elsif time_interval == 'week' %}
        TRUNC(DATE_PART('day',e.occurred_at - u.activated_at)/7) AS user_period,
-{% elsif time_interval == 'day' %}
-       DATE_PART('day',e.occurred_at - u.activated_at) AS user_period,
 {% endif %}
 
        COUNT(DISTINCT e.user_id) AS retained_users
@@ -37,8 +36,6 @@ SELECT DATE_TRUNC('{{time_interval}}',u.activated_at) AS signup_date,
    AND u.activated_at <= '2014-10-31'::TIMESTAMP
  GROUP BY 1,2
  ORDER BY 1,2
-LIMIT 100
-
 
 {% form %}
 
