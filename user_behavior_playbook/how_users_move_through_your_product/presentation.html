@@ -45,7 +45,7 @@ body {
 
 #explanation {
   position: absolute;
-  top: 260px;
+  top: 205px;
   left: 305px;
   width: 140px;
   text-align: center;
@@ -66,16 +66,24 @@ p {
 #title { font-size: 18px }
 #details { font-size: 14px; }
 
+#cond_percentage {
+  font-size: 1.8em;
+  color: #666;
+}
 
 </style>
 <p id="title">Event Sequences by Session</p>
 <p id="details">Hover over bars in the circle for details</p>
+
 <div id="main">
   <div id="sequence"></div>
   <div id="chart">
     <div id="explanation" style="visibility: hidden;">
       <span id="percentage"></span><br/>
-      of visits begin with this sequence of pages
+      of visits begin with this sequence of pages.<br/><br/>
+      Conditional percent of 
+      <span id="cond_percentage"></span><br/>
+      from previous location
     </div>
   </div>
 </div>
@@ -222,7 +230,19 @@ function mouseover(d) {
   if (percentage < 0.1) {
     percentageString = "< 0.1%";
   }
-
+  
+  //Calculate conditional percentage
+  var sequenceArray = getAncestors(d);
+  var parent_conditional_value = d.parent.value;
+  var cond_percentage = (100*d.value/parent_conditional_value).toPrecision(3);
+  var cond_percentageString = cond_percentage + "%";
+    if (cond_percentage < 1.0) {
+    percentageString = "< 1%";
+  }
+  
+  d3.select("#cond_percentage")
+      .text(cond_percentageString);
+  
   d3.select("#percentage")
       .text(percentageString);
 
