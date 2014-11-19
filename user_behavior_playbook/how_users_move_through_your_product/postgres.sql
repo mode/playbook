@@ -19,42 +19,38 @@ SELECT e1,
        e5,
        COUNT(*) AS occurrances
   FROM (
+--Pivot out first five events in each session
 SELECT user_id,
-       session_number,
+       session,
        MAX(CASE WHEN event_number = 1 THEN event_name ELSE NULL END) AS e1,
        MAX(CASE WHEN event_number = 2 THEN event_name ELSE NULL END) AS e2,
        MAX(CASE WHEN event_number = 3 THEN event_name ELSE NULL END) AS e3,
        MAX(CASE WHEN event_number = 4 THEN event_name ELSE NULL END) AS e4,
        MAX(CASE WHEN event_number = 5 THEN event_name ELSE NULL END) AS e5
   FROM (
-SELECT e.user_id,
-       e.occurred_at,
-       s.session_number,
-       e.event_name,
-       ROW_NUMBER() OVER (PARTITION BY e.user_id, s.session_number ORDER BY e.occurred_at) AS event_number
-  FROM (
-       SELECT user_id,
-              occurred_at AS session_start,
-              COALESCE(LEAD(occurred_at,1) OVER (PARTITION BY user_id ORDER BY occurred_at),'2020-01-01') AS session_end,
-              ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY occurred_at) AS session_number
+       -- Find event number in session
+       SELECT z.*,
+              ROW_NUMBER() OVER (PARTITION BY user_id, session ORDER BY occurred_at) AS event_number
          FROM (
-              SELECT user_id,
-                     occurred_at,
-                     EXTRACT(
-                      'EPOCH' FROM occurred_at - LAG(occurred_at,1) OVER (PARTITION BY user_id ORDER BY occurred_at)
-                     )/60 AS time_to_last_event
-                FROM events
-              ) bounds
-        WHERE time_to_last_event > 30
-           OR time_to_last_event IS NULL
-       ) s
-  JOIN events e
-    ON e.user_id = s.user_id
-   AND e.occurred_at >= s.session_start
-   AND e.occurred_at < s.session_end 
-       ) x
+              -- Sum breaks to find sessions
+              SELECT y.*,
+                     SUM(break) OVER (ORDER BY user_id,occurred_at ROWS UNBOUNDED PRECEDING) AS session
+                FROM (
+                     -- Add flag if last event was more than 10 minutes ago
+                     SELECT x.*,
+                            CASE WHEN last_event IS NULL OR occurred_at >= last_event + INTERVAL '10 MINUTE' THEN 1 ELSE 0 END AS break
+                       FROM (
+                            -- Find last event
+                            SELECT *,
+                                   LAG(occurred_at,1) OVER (PARTITION BY user_id ORDER BY occurred_at) AS last_event
+                              FROM events
+                              
+                            ) x
+                     ) y
+              ) z
+       ) a
+ WHERE event_number <= 5
  GROUP BY 1,2
-       ) z
+       ) final
  GROUP BY 1,2,3,4,5
  ORDER BY 6 DESC
-LIMIT 100
