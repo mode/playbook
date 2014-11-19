@@ -3,35 +3,35 @@
 body {
   font-size: 12px;
   font-weight: 400;
-  width: 960px;
-  height: 800px;
 }
 
 #main {
-  float: left;
-  width: 750px;
-}
-
-#sidebar {
-  float: right;
-  height: 750px;
-  width: 200px;
-  display: table;
-    
-}
-
-#sequence {
-  width: 600px;
-  height: 70px;
-}
-
-#legend {
+  width: 620px;
   margin: 0 auto;
-  display: table-cell;
-  vertical-align: middle;
 }
 
-#sequence text, #legend text {
+
+
+.legend-container {
+  display: block;
+  margin: 0 auto;
+  text-align: center;
+  max-width: 600px;
+}
+
+.legend {
+  position: relative;
+  vertical-align: middle;
+  display: inline-block;
+  margin-left: 5px;
+  margin-top: 5px;
+  text-align: center;
+  width: 195px;
+  height: 100px
+  padding: 5px;
+}
+
+#sequence text, .legend-container text {
   fill: #fff;
 }
 
@@ -45,8 +45,11 @@ body {
 
 #explanation {
   position: absolute;
-  top: 205px;
-  left: 305px;
+  margin-left: auto;
+  margin-right: auto;
+  top: 215px;
+  left: 0;
+  right: 0;
   width: 140px;
   text-align: center;
   color: #666;
@@ -87,15 +90,13 @@ p {
     </div>
   </div>
 </div>
-<div id="sidebar">
-  <div id="legend"></div>
-</div>
+<div class="legend-container"></div>
 <script src="//cdn.rawgit.com/mbostock/d3/master/lib/colorbrewer/colorbrewer.js"></script>
 <script src="//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore-min.js"></script>
 <script>
 
 // Dimensions of sunburst.
-var width = 750;
+var width = 620;
 var height = 600;
 var radius = Math.min(width, height) / 2;
 
@@ -169,10 +170,10 @@ formattedData = []
 data.forEach(function(d) {
   var c = 1
   var sequence = d.e1;
-  if (d.e2 != null && c == 1) { e2 = "-" + d.e2; } else if (c == 1) { e2 = "-end"; c = 0; } else { e2 = ""; }
-  if (d.e3 != null && c == 1) { e3 = "-" + d.e3; } else if (c == 1) { e3 = "-end"; c = 0; } else { e3 = ""; }
-  if (d.e4 != null && c == 1) { e4 = "-" + d.e4; } else if (c == 1) { e4 = "-end"; c = 0; } else { e4 = ""; }
-  if (d.e5 != null && c == 1) { e5 = "-" + d.e5; } else if (c == 1) { e5 = "-end"; c = 0; } else { e5 = ""; }
+  if (d.e2 != null && c == 1) { e2 = "-~-" + d.e2; } else if (c == 1) { e2 = "-~-end"; c = 0; } else { e2 = ""; }
+  if (d.e3 != null && c == 1) { e3 = "-~-" + d.e3; } else if (c == 1) { e3 = "-~-end"; c = 0; } else { e3 = ""; }
+  if (d.e4 != null && c == 1) { e4 = "-~-" + d.e4; } else if (c == 1) { e4 = "-~-end"; c = 0; } else { e4 = ""; }
+  if (d.e5 != null && c == 1) { e5 = "-~-" + d.e5; } else if (c == 1) { e5 = "-~-end"; c = 0; } else { e5 = ""; }
   
   sequence = sequence + e2 + e3 + e4 + e5;
   
@@ -355,14 +356,6 @@ function updateBreadcrumbs(nodeArray, percentageString) {
   // Remove exiting nodes.
   g.exit().remove();
 
-  // Now move and update the percentage at the end.
-  d3.select("#trail").select("#endlabel")
-      .attr("x", (nodeArray.length + 0.5) * (b.w + b.s))
-      .attr("y", b.h / 2)
-      .attr("dy", "0.35em")
-      .attr("text-anchor", "middle")
-      .text(percentageString);
-
   // Make the breadcrumb trail visible, if it's hidden.
   d3.select("#trail")
       .style("visibility", "");
@@ -375,31 +368,32 @@ function drawLegend() {
   var li = {
     w: 195, h: 30, s: 3, r: 3
   };
+  
+  d3.entries(colors).forEach(function(c) {
+    
+    divContainer = d3.select(".legend-container")
+        .append("div")
+        .attr("class","legend")
+    
+    svg = divContainer.append("svg:svg")
+        .attr("width", li.w)
+        .attr("height", li.h);
 
-  var legend = d3.select("#legend").append("svg:svg")
-      .attr("width", li.w)
-      .attr("height", d3.keys(colors).length * (li.h + li.s));
+    svg.append("svg:rect")
+        .attr("rx", li.r)
+        .attr("ry", li.r)
+        .attr("width", li.w)
+        .attr("height", li.h)
+        .style("fill", function() { return c.value; });
 
-  var g = legend.selectAll("g")
-      .data(d3.entries(colors))
-      .enter().append("svg:g")
-      .attr("transform", function(d, i) {
-              return "translate(0," + i * (li.h + li.s) + ")";
-           });
-
-  g.append("svg:rect")
-      .attr("rx", li.r)
-      .attr("ry", li.r)
-      .attr("width", li.w)
-      .attr("height", li.h)
-      .style("fill", function(d) { return d.value; });
-
-  g.append("svg:text")
-      .attr("x", li.w / 2)
-      .attr("y", li.h / 2)
-      .attr("dy", "0.35em")
-      .attr("text-anchor", "middle")
-      .text(function(d) { return d.key; });
+    svg.append("svg:text")
+        .attr("x", li.w / 2)
+        .attr("y", li.h / 2)
+        .attr("dy", "0.35em")
+        .attr("text-anchor", "middle")
+        .text(function() { return c.key; });
+  })
+    
 }
 
 function toggleLegend() {
@@ -423,7 +417,7 @@ function buildHierarchy(csv) {
     if (isNaN(size)) { // e.g. if this is a header row
       continue;
     }
-    var parts = sequence.split("-");
+    var parts = sequence.split("-~-");
     var currentNode = root;
     for (var j = 0; j < parts.length; j++) {
       var children = currentNode["children"];
