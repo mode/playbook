@@ -121,6 +121,8 @@ var colorScale = colorbrewer.Blues[9];
 var allColumnsShareGradient = true;
 var gradientType = 1;
 
+var parameterSelection = getParameter()
+
 var colInfo =  getRanges()
 var ranges = colInfo[0];
 var incCols = colInfo[1];
@@ -166,10 +168,6 @@ function drawTable(data,columns) {
   drawShades(scales,incCols,gradientType);
 }
 
-function hoverText(d) {
-  console.log(d)
-  return d;
-}
       
   
 function columnValues(row,columns) {
@@ -255,11 +253,24 @@ function drawShades(scales,included,gradientType) {
         $(this).css("border","1px solid" + bg(value))
         
         if (columns[c].name != "days_since_last_event") {
-          $(this).attr("title",
-            p(+$(this).text()) + " of users who have taken the action between " +
+          
+          console.log(parameterSelection)
+          
+          if (parameterSelection == "percent") {
+            
+            hoverText = p(+$(this).text().replace(/\,/g,'')) + " of users who have taken the action between " +
             columns[c].name + " times took the action again after having last taken the " + 
             " action " + r + " days ago."
-          )
+            
+          } else {
+            
+            hoverText = $(this).text() + " users took the action between " +
+            columns[c].name + " times and then took the action again after having last taken the " + 
+            " action " + r + " days ago."
+            
+          }  
+      
+          $(this).attr("title",hoverText)
         }
         
       } else {
@@ -356,6 +367,17 @@ function sortData(data,column,direction) {
   d3.selectAll("tr").remove()
   var sorted = _.sortBy(data, function(d){ return direction * d[column]; })
   drawTable(sorted,columns)
+}
+
+function getParameter() {
+  var data = dataset.content;
+  var max = d3.max(_.pluck(data,"1-5"))
+  
+  if (max > 1) {
+    return "count";
+  } else {
+    return "percent"
+  }
 }
 
 $("th").hover(
